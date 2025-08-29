@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -10,7 +11,11 @@ app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 
 // Gemini API setup
-const genAI = new GoogleGenerativeAI('AIzaSyCIXoo7Lc-xSei_BUdDq5QA2Co2UvH4tRo');
+const geminiApiKey = process.env.GEMINI_API_KEY;
+if (!geminiApiKey) {
+  console.warn('Warning: GEMINI_API_KEY is not set. Set it in a local .env file.');
+}
+const genAI = new GoogleGenerativeAI(geminiApiKey || '');
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // Test endpoint
@@ -166,7 +171,7 @@ Write as much detail as allowed by the limits. Avoid generic filler.`;
 
 app.listen(PORT, () => {
   console.log(`🚀 Gemini Vision API Server running on port ${PORT}`);
-  console.log(`🔑 Using Gemini API Key: AIzaSyCIXoo7Lc-xSei_BUdDq5QA2Co2UvH4tRo`);
+  console.log(`🔑 Using Gemini API Key: ${geminiApiKey ? 'loaded from env' : 'NOT SET'}`);
   console.log(`📱 Frontend will be available at: http://localhost:3000`);
   console.log(`🔧 API endpoint: http://localhost:${PORT}/api/analyze-image`);
 });
