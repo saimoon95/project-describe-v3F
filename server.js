@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
+const path = require('path'); // <-- Added for serving files
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,8 +21,8 @@ const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'Server is running!', 
+  res.json({
+    message: 'Server is running!',
     timestamp: new Date().toISOString(),
     api: 'Google Gemini Vision API'
   });
@@ -31,7 +32,7 @@ app.get('/api/test', (req, res) => {
 app.post('/api/analyze-image', async (req, res) => {
   try {
     const { image, mimeType, titleLength, descriptionLength, tagsLength } = req.body;
-    
+
     if (!image) {
       return res.status(400).json({ error: 'No image provided' });
     }
@@ -78,18 +79,18 @@ Write as much detail as allowed by the limits. Avoid generic filler.`;
         ],
         generationConfig,
       });
-      
+
       const response = await result.response;
       const text = response.text();
-      
+
       console.log('Gemini API response:', text);
-      
+
       // Extract JSON from response
       let jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('Invalid response format from Gemini API');
       }
-      
+
       let geminiResult;
       try {
         geminiResult = JSON.parse(jsonMatch[0]);
@@ -97,23 +98,23 @@ Write as much detail as allowed by the limits. Avoid generic filler.`;
         console.error('JSON parse error:', parseError);
         throw new Error('Failed to parse Gemini API response');
       }
-      
+
       // Validate and process the result
       const { title, description, tags } = geminiResult;
-      
+
       if (!title || !description || !Array.isArray(tags)) {
         throw new Error('Invalid response structure from Gemini API');
       }
-      
+
       // Ensure length limits are respected
       const finalTitle = title.length > titleLength ? title.substring(0, titleLength - 3) + '...' : title;
       const finalDescription = description.length > descriptionLength ? description.substring(0, descriptionLength - 3) + '...' : description;
-      
+
       // Process tags to respect character limit including commas and spaces
       const normalizedTags = tags
         .filter(t => typeof t === 'string' && t.trim().length > 0)
         .map(t => t.replace(/[#\s]+/g, ' ').trim());
-      
+
       const finalTags = [];
       let currentLength = 0;
       for (let i = 0; i < normalizedTags.length; i++) {
@@ -126,48 +127,60 @@ Write as much detail as allowed by the limits. Avoid generic filler.`;
           break;
         }
       }
-      
+
       const finalResult = {
         title: finalTitle,
         description: finalDescription,
         tags: finalTags
       };
-      
+
       console.log('Final processed result:', finalResult);
-      
+
       res.json(finalResult);
-      
+
     } catch (apiError) {
       console.error('Gemini API error:', apiError);
-      
+
       // Final fallback - create meaningful content based on image analysis
       console.log('Using intelligent fallback analysis...');
-      
+
       const fallbackResult = {
         title: `Image Analysis (${titleLength > 30 ? 'Processing Complete' : 'Analyzed'})`,
         description: `The image has been processed and analyzed with detailed consideration of visual elements, composition, colors, and context.`,
         tags: ['Image Analysis', 'Visual Processing', 'AI Detection']
       };
-      
+
       if (fallbackResult.title.length > titleLength) {
         fallbackResult.title = fallbackResult.title.substring(0, titleLength - 3) + '...';
       }
       if (fallbackResult.description.length > descriptionLength) {
         fallbackResult.description = fallbackResult.description.substring(0, descriptionLength - 3) + '...';
       }
-      
+
       res.json(fallbackResult);
     }
-    
+
   } catch (error) {
     console.error('Error analyzing image:', error);
-    res.status(500).json({ 
-      error: 'Failed to analyze image', 
+    res.status(500).json({
+      error: 'Failed to analyze image',
       details: error.message,
       fallback: 'Using fallback analysis'
     });
   }
 });
+
+
+// ===============================================================
+// DEPLOYMENT: SERVE REACT FRONTEND
+// This must be after all your API routes
+// ===============================================================
+app.use(express.static(path.join(__dirname, 'build')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+});
+
 
 app.listen(PORT, () => {
   console.log(`🚀 Gemini Vision API Server running on port ${PORT}`);
